@@ -528,41 +528,41 @@ def main():
         'tau_decay': 6,  # Decay Time Constant for Calcium Impulse Response Function (seconds)
 
         'lag_window': {  # Time shift for cross correlation to the left / right (seconds)
-            'moving_target_01': [5, 10],
-            'moving_target_02': [5, 10],
-            'grating_appears': [5, 5],
-            'grating_disappears': [5, 5],
-            'grating_0': [5, 10],
-            'grating_180': [5, 10],
-            'bright_loom': [5, 5],
-            'dark_loom': [5, 5],
-            'bright_flash': [5, 5],
-            'dark_flash': [5, 5],
+            'moving_target_01': [2, 10],
+            'moving_target_02': [2, 10],
+            'grating_appears': [2, 5],
+            'grating_disappears': [2, 5],
+            'grating_0': [2, 10],
+            'grating_180': [2, 10],
+            'bright_loom': [2, 5],
+            'dark_loom': [2, 5],
+            'bright_flash': [2, 5],
+            'dark_flash': [2, 5],
             'motor_spontaneous': [5, 5]
         },
 
         'time_window': {  # Cutout: Time before and after stimulus period for linear regression model
-            'moving_target_01': [2, 10],  # window: -2 to 16 s (stim duration 6 s)
-            'moving_target_02': [2, 10],
-            'grating_appears': [2, 15],  # window: -2 to 16 s (stim duration 1 s)
-            'grating_disappears': [2, 15],
-            'grating_0': [2, 6],  # window: -2 to 16 s (stim duration 10 s)
-            'grating_180': [2, 6],
-            'bright_loom': [2, 14],  # window: -2 to 16 s (stim duration 2 s)
-            'dark_loom': [2, 14],
-            'bright_flash': [2, 15],  # window: -2 to 16 s (stim duration 1 s)
-            'dark_flash': [2, 15],
-            'motor_spontaneous': [2, 20]  # window: -2 to 20 s around swim onset
+            'moving_target_01': [2, 5],  # window: -2 to 11 s (stim duration 6 s)
+            'moving_target_02': [2, 5],
+            'grating_appears': [2, 10],  # window: -2 to 11 s (stim duration 1 s)
+            'grating_disappears': [2, 10],
+            'grating_0': [2, 2],  # window: -2 to 12 s (stim duration 10 s)
+            'grating_180': [2, 2],
+            'bright_loom': [2, 10],  # window: -2 to 12 s (stim duration 2 s)
+            'dark_loom': [2, 10],
+            'bright_flash': [2, 10],  # window: -2 to 11 s (stim duration 1 s)
+            'dark_flash': [2, 10],
+            'motor_spontaneous': [2, 15]  # window: -2 to 15 s around swim onset
         }
     }
-    # compute_linear_scoring(settings)
-    # exit()
+    compute_linear_scoring(settings)
+    exit()
 
     # Null Distribution (Permutation/Bootstrapping Test)
     permutation_settings = {
         'n_permutations': 10000,
         'time_before': 2,  # Cutout: Time before event starts (seconds)
-        'time_after': 20,  # Cutout: Time after event ends (seconds)
+        'time_after': 15,  # Cutout: Time after event ends (seconds)
 
         'tau_rise': 3,  # Rise Time Constant for Calcium Impulse Response Function (seconds)
         'tau_decay': 6  # Decay Time Constant for Calcium Impulse Response Function (seconds)

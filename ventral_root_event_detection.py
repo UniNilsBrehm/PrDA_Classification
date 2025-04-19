@@ -1070,16 +1070,16 @@ def main():
         'check_symmetry_parameter': 0.4,  # Depends on Method
 
         'stimulus_overlap': {  # buffer before and after stimulus period for classifying swim events in seconds
-            'moving_target_01': [1, 1],
-            'moving_target_02': [1, 1],
-            'grating_appears': [1, 3],
-            'grating_disappears': [1, 3],
-            'grating_0': [1, 1],
-            'grating_180': [1, 1],
-            'bright_loom': [1, 3],
-            'dark_loom': [1, 3],
-            'bright_flash': [1, 3],
-            'dark_flash': [1, 3]
+            'moving_target_01': [2, 10],
+            'moving_target_02': [2, 10],
+            'grating_appears': [2, 10],
+            'grating_disappears': [2, 10],
+            'grating_0': [2, 10],
+            'grating_180': [2, 10],
+            'bright_loom': [2, 10],
+            'dark_loom': [2, 10],
+            'bright_flash': [2, 10],
+            'dark_flash': [2, 10]
         }
     }
 

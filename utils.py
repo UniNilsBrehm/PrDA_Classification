@@ -117,7 +117,7 @@ def get_rois_per_sweep(ca_labels):
     return sw_rois
 
 
-def create_regressors_from_binary(binary, cif, delta=False, norm=False):
+def create_regressors_from_binary(binary, cif, delta=False, norm=False) -> object:
     """
     Create a regressor trace from a binary trace and a calcium impulse function (CIF).
 

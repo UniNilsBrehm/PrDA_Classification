@@ -18,7 +18,7 @@ class DataPlotter:
         screen_height = root.winfo_screenheight()
 
         # window_geometry = "3200x800"
-        window_geometry = f"{int(1920/1.2)}x{int(1080/2)}"
+        window_geometry = f"{int(1920/1.2)}x{int(1080/1.8)}"
         self.root.geometry(window_geometry)
         self.base_dir = Config.BASE_DIR
 
@@ -27,9 +27,9 @@ class DataPlotter:
         scores_file = pd.read_csv(Config.linear_scoring_file)
         # Remove multiple entries: Motor Spontaneous and Moving Target 01 and 02
         # There are mean values for these already present
-        # idx = scores_file['reg'].isin(['motor_spontaneous', 'moving_target_01', 'moving_target_02', 'moving_target_01_motor', 'moving_target_02_motor'])
         idx = scores_file['reg'].isin(['motor_spontaneous'])
         self.scores = scores_file[~idx].reset_index(drop=True).pivot(index=['roi', 'sw'], columns='reg', values='score').reset_index()
+        self.r2 = scores_file[~idx].reset_index(drop=True).pivot(index=['roi', 'sw'], columns='reg', values='r2').reset_index()
 
         self.data_size = self.data.shape[0]
         self.data_labels = pd.read_csv(Config.ca_labels_file)
@@ -41,7 +41,7 @@ class DataPlotter:
 
         # Generate Calcium Impulse Response Function
         _, self.cif = calcium_impulse_response(
-            tau_rise=2, tau_decay=7, amplitude=1.0, sampling_rate=self.ca_sampling_rate, threshold=1e-5, norm=True
+            tau_rise=3, tau_decay=6, amplitude=1.0, sampling_rate=self.ca_sampling_rate, threshold=1e-5, norm=True
         )
 
         self.figure, self.ax = plt.subplots()
@@ -62,6 +62,7 @@ class DataPlotter:
         self.root.bind("<Left>", lambda event: self.change_data(-1))
         self.root.bind("<Right>", lambda event: self.change_data(1))
         self.root.bind("q", lambda event: self.close())
+        self.root.bind("r", lambda event: self.random_change_data())
 
         self.button_frame = ttk.Frame(self.root)
         self.button_frame.pack(side=tk.BOTTOM)
@@ -80,6 +81,7 @@ class DataPlotter:
         ca_time = self.data_time
         stimulus_trace = self.stimulus[sw]
         scores = self.scores[self.scores['roi'] == int(roi)]
+        r2 = self.r2[self.r2['roi'] == int(roi)]
         motor_spontaneous_reg = create_regressors_from_binary(self.motor_binaries[sw]['spontaneous'], self.cif, delta=True, norm=True)
         motor_stimulus_events = self.motor_binaries[sw].drop(columns='spontaneous').sum(axis=1)
         motor_stimulus_reg = create_regressors_from_binary(motor_stimulus_events, self.cif, delta=True, norm=True)
@@ -99,6 +101,8 @@ class DataPlotter:
         ]
         t_pos = [310, 375, 442, 505, 575, 640, 700, 760, 820, 885]
         self.ax.text(150, 1, f'spont. motor={scores["motor_spontaneous_MEAN"].item():.3f}', fontsize=10, color='tab:red')
+        self.ax.text(150, 0.95, f'R2={r2["motor_spontaneous_MEAN"].item():.3f}', fontsize=10, color='tab:red')
+
         k = 0
         for s in s_types:
             self.ax.text(t_pos[k], 1, f'{scores[s].item():.3f}', fontsize=10, color='tab:blue')
@@ -114,6 +118,10 @@ class DataPlotter:
 
     def change_data(self, step):
         self.current_data_index = (self.current_data_index + step) % self.data.shape[1]
+        self.plot_data()
+
+    def random_change_data(self):
+        self.current_data_index = np.random.randint(self.data.shape[1])
         self.plot_data()
 
 
