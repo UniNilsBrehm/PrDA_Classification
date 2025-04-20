@@ -139,9 +139,9 @@ def run_suite2p_pipeline(tiff_path, output_folder):
     os.makedirs(output_folder, exist_ok=True)
     ops = suite2p.default_ops()
     ops.update({
-        'data_path': [os.path.dirname(tiff_path)],  # needed even if unused
-        # 'data_path': [tiff_dir],  # scans for tiffs
-        'file_list': [tiff_path],
+        # 'data_path': [os.path.dirname(tiff_path)],  # needed even if unused
+        'data_path': [tiff_path],  # scans for tiffs
+        # 'file_list': [tiff_path],
         'save_path0': output_folder,
         'nchannels': 1,  # or 2 if it's dual-channel
         'functional_chan': 1,  # usually 1 if GCaMP is first channel
@@ -310,15 +310,39 @@ def run_suite2p_detection():
         output_folder=rec_dir,
     )
 
-
-def validate_results():
-    rec_dir = 'D:/WorkingData/RoiDetection/test/rec'
+def validate_results(rec_dir):
+    # rec_dir = 'D:/WorkingData/RoiDetection/test/rec'
     check_detection(output_folder=rec_dir, cmap='gray')
 
 
+def batch_suite2p(save_dir):
+    import time
+    sw_list = os.listdir(save_dir)
+    k = 0
+    for sw in sw_list:
+        t0 = time.perf_counter()
+        k += 1
+        sw_dir = f'{save_dir}/{sw}'
+        run_suite2p_pipeline(
+            tiff_path=sw_dir,
+            output_folder=sw_dir,
+        )
+
+        validate_results(sw_dir)
+        t1 = time.perf_counter()
+        print(f'FINISHED {k}/{len(sw)}, this took {(t1 - t0)/60:.3f} minutes')
+
+
+
+
 def main():
+    # Batch Detection
+    # file_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/tiff_recordings/motion_corrected'
+    save_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/caiman_output'
+    batch_suite2p(save_dir)
+
     # run_suite2p_detection()
-    validate_results()
+    # validate_results(rec_dir='D:/WorkingData/RoiDetection/test/rec')
 
 
 if __name__ == '__main__':

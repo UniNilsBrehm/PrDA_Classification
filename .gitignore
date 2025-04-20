@@ -1,6 +1,7 @@
 # ignore ALL .log files
 *.log
 *.idea
+*.py#
 
 # ignore ALL files in ANY directory named temp
 temp

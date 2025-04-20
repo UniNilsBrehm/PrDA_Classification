@@ -31,194 +31,14 @@ import warnings
 from utils import load_hdf5_as_dict
 from IPython import embed
 
-
-# try:
-#     cv2.setNumThreads(0)
-# except:
-#     pass
-#
-# try:
-#     if __IPYTHON__:
-#         # this is used for debugging purposes only. allows to reload classes
-#         # when changed
-#         get_ipython().magic('load_ext autoreload')
-#         get_ipython().magic('autoreload 2')
-# except NameError:
-#     pass
-
-
 # import caiman as cm
-from caiman import load as cm_load
-from caiman import load_memmap as cm_load_memmap
+from caiman import load, load_memmap, stop_server, load_movie_chain, concatenate
 from caiman.cluster import setup_cluster
 from caiman.motion_correction import MotionCorrect
 from caiman.source_extraction.cnmf import cnmf as cnmf
 from caiman.source_extraction.cnmf import params as params
 from caiman.source_extraction import cnmf as o_cnmf
 from caiman.summary_images import local_correlations_movie_offline
-
-
-def source_extraction_with_refit(file_name):
-    t0 = time.perf_counter()
-    # start a cluster
-    c, dview, n_processes = cm.cluster.setup_cluster(
-        backend='local', n_processes=None, single_thread=False
-    )
-
-    # set up some parameters
-    # fnames = [os.path.join(caiman_datadir(), 'example_movies', 'demoMovie.tif')]
-    fnames = [file_name]
-
-    is_patches = False  # flag for processing in patches or not
-    fr = 3  # approximate frame rate of data
-    decay_time = 5.0  # length of transient
-
-    if is_patches:  # PROCESS IN PATCHES AND THEN COMBINE
-        rf = 16  # half size of each patch
-        stride = 4  # overlap between patches ( 1- stride/rf)
-        K = 10  # number of components in each patch
-    else:  # PROCESS THE WHOLE FOV AT ONCE
-        rf = None  # setting these parameters to None
-        stride = None  # will run CNMF on the whole FOV
-        K = None  # number of neurons expected (in the whole FOV)
-
-    gSig = [3, 3]  # expected half size of neurons in px
-    merge_thresh = 0.80  # merging threshold, max correlation allowed
-    p = 1  # order of the autoregressive system
-    gnb = 2  # global background order
-    ssub = 2  # spatial subsampling during initialization (use every 2nd pixel → half resolution)
-    tsub = 2  # temporal subsampling during initialization (average every 2 frames)
-
-    # method_init = 'greedy_roi'
-    method_init = 'corr_pnr',  # correlation-based initialization
-    min_corr = 0.8,  # min local correlation for seed
-    min_pnr = 10,  # min peak-to-noise ratio for seed
-
-    params_dict = {
-        'fnames': fnames,
-        'method_init': method_init,
-        'min_corr': min_corr,
-        'min_pnr': min_pnr,
-        'fr': fr,
-        'decay_time': decay_time,
-        'rf': rf,
-        'stride': stride,
-        'K': K,
-        'gSig': gSig,
-        'merge_thr': merge_thresh,
-        'p': p,
-        'nb': gnb,
-        'n_processes': n_processes,
-        'rolling_sum': True,
-        'only_init': True,
-        'ssub': ssub,
-        'tsub': tsub
-    }
-
-    opts = params.CNMFParams(params_dict=params_dict)
-
-    # Now RUN CaImAn Batch (CNMF)
-    print('')
-    print('==== RUN CNMF =====')
-    print('')
-    cnm = cnmf.CNMF(n_processes, params=opts, dview=dview)
-    cnm = cnm.fit_file()
-
-    # plot contour plots of components
-    # window: number of frames for computing correlation
-    print('')
-    print('==== RUN LOCAL CORRELATIONS (CONTOURS) =====')
-    print('')
-    Cns = local_correlations_movie_offline(fnames[0],
-                                           remove_baseline=True,
-                                           swap_dim=False, window=500, stride=8,
-                                           winSize_baseline=200, quantil_min_baseline=10,
-                                           dview=dview)
-    Cn = Cns.max(axis=0)
-
-    # Plot
-    # cnm.estimates.plot_contours(img=Cn)
-
-    # load memory mapped file
-    Yr, dims, T = cm.load_memmap(cnm.mmap_file)
-    images = np.reshape(Yr.T, [T] + list(dims), order='F')
-
-    print('')
-    print('==== REFIT =====')
-    print('')
-    # refit
-    cnm2 = cnm.refit(images, dview=dview)
-
-    print('')
-    print('==== EVALUATING COMPONENTS =====')
-    print('')
-
-    # COMPONENT EVALUATION
-    # the components are evaluated in three ways:
-    #   a) the shape of each component must be correlated with the data
-    #   b) a minimum peak SNR is required over the length of a transient
-    #   c) each shape passes a CNN based classifier (this will pick up only neurons
-    #           and filter out active processes)
-
-    min_SNR = 2.5  # peak SNR for accepted components (if above this, accept)
-    rval_thr = 0.8  # spatial footprint consistency: space correlation threshold (if above this, accept)
-    use_cnn = True  # use the CNN classifier (prob. of component being a neuron)
-    min_cnn_thr = 0.9  # Only components with CNN scores ≥ thr are accepted as likely real neurons.
-    cnn_lowest = 0.1  # Components scoring < lowest are considered garbage and won’t be touched even during manual curation or re-evaluation.
-
-    cnm2.params.set('quality', {'min_SNR': min_SNR,
-                                'rval_thr': rval_thr,
-                                'use_cnn': use_cnn,
-                                'min_cnn_thr': min_cnn_thr,
-                                'cnn_lowest': cnn_lowest})
-
-    cnm2.estimates.evaluate_components(images, cnm2.params, dview=dview)
-
-    t1 = time.perf_counter()
-    print(f'THIS TOOK: {(t1-t0)/60:.2f} min.')
-
-    embed()
-    exit()
-
-    print('==== VISUAL VALIDATION =====')
-    # only select high quality components (destructive)
-    # cnm2.estimates.select_components(use_object=True)
-
-    # Visual Validation
-    # visualize selected and rejected components
-    cnm2.estimates.plot_contours(img=Cn, idx=cnm2.estimates.idx_components)
-    # cnm2.estimates.plot_contours(img=Cn)
-
-    # visualize selected components
-    cnm2.estimates.view_components(images, idx=cnm2.estimates.idx_components, img=Cn)
-
-    # play movie with results (original, reconstructed, amplified residual)
-    v = cnm2.estimates.play_movie(
-        images,
-        magnification=2,
-        gain_res=2,
-        gain_color=6
-    )
-
-    # save results
-    print('')
-    print('==== SAVE RESULTS =====')
-    print('')
-    t1 = time.perf_counter()
-    print(f'THIS TOOK: {(t1-t0)/60:.2f} min.')
-
-    cnm2.estimates.Cn = Cn
-    cnm2.save(cnm2.mmap_file[:-4] + 'hdf5')
-
-    # play movie with results (original, reconstructed, amplified residual)
-    # cnm2.estimates.play_movie(images, magnification=4)
-
-    # STOP CLUSTER and clean up log files
-    cm.stop_server(dview=dview)
-
-    log_files = glob.glob('Yr*_LOG_*')
-    for log_file in log_files:
-        os.remove(log_file)
 
 
 def source_extraction(file_name, save_dir, visual_check=True, parallel=True, corr_map=False):
@@ -278,7 +98,10 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
             'use_cnn': True,  # use the CNN classifier (prob. of component being a neuron)
             'min_cnn_thr': 0.9,   # Only components with CNN scores ≥ thr are accepted as likely real neurons.
             'cnn_lowest': 0.1  # Components scoring < lowest are considered garbage and won’t be touched even during manual curation or re-evaluation.
-        }
+        },
+        'general': {
+            'use_cuda': True
+        },
     }
 
     opts = params.CNMFParams(params_dict=params_dict)
@@ -302,7 +125,7 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
         exit()
 
     # load memory mapped file
-    Yr, dims, T = cm_load_memmap(cnm.mmap_file)
+    Yr, dims, T = load_memmap(cnm.mmap_file)
     images = np.reshape(Yr.T, [T] + list(dims), order='F')
     mean_image = np.mean(images, axis=0)
     # sd_image = np.std(images, axis=0)
@@ -337,25 +160,24 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
         save_roi_centers_plot(component_centers[good_idx], mean_image, file_dir=f'{save_dir}/caiman_mean_img_rois_center.jpg', marker_size=30, cmap=cmap)
 
         if corr_map:
-            save_contour_plot(cnm, Cn, f'{save_dir}/corr_contour_plot.jpg')
-            save_roi_centers_plot(component_centers[good_idx], Cn, file_dir=f'{save_dir}/caiman_corr_rois_center.jpg', marker_size=30)
+            save_contour_plot(cnm, Cn, f'{save_dir}/corr_contour_plot.jpg', cmap=cmap)
+            save_roi_centers_plot(component_centers[good_idx], Cn, file_dir=f'{save_dir}/caiman_corr_rois_center.jpg', marker_size=30, cmap=cmap)
 
-        # play movie with results (original, reconstructed (A·C + b), amplified residual)
-        v = cnm.estimates.play_movie(
-            images,
-            q_min=1,
-            q_max=99,
-            include_bck=True,
-            magnification=3,
-            gain_res=1,
-            gain_color=1,
-            thr=0,
-            use_color=False,
-            display=False
-        )
-
-        v.save(f'{save_dir}/caiman_movie.avi')
-        print('Movie Stored to Disk')
+        # # play movie with results (original, reconstructed (A·C + b), amplified residual)
+        # v = cnm.estimates.play_movie(
+        #     images,
+        #     q_min=1,
+        #     q_max=99,
+        #     include_bck=True,
+        #     magnification=3,
+        #     gain_res=1,
+        #     gain_color=1,
+        #     thr=0,
+        #     use_color=False,
+        #     display=False,
+        # )
+        # v.save(f'{save_dir}/caiman_movie.avi')
+        # print('Movie Stored to Disk')
         # write_video_from_array(v, f'{save_dir}/movie.mp4', fps=10)
 
     print('\n==== SAVING RESULTS =====\n')
@@ -385,7 +207,8 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
 
     print('\n==== CAIMAN FINISHED =====\n')
     if parallel:
-        c.close()
+        # Stop the cluster
+        stop_server(dview=dview)
 
 
 def inspect_caiman_results(file_dir, bg_image):
@@ -434,11 +257,7 @@ def write_video_from_array(v, output_path, fps=10):
     print(f"Saved video to {output_path}")
 
 
-def motion_correction(file_name, display_images=False):
-    print('')
-    print('==== LOADING DATA ====')
-    print('')
-
+def motion_correction(file_name, pw_rigid, output_path, display_images=False):
     # First setup some parameters for data and motion correction
     # dataset dependent parameters
     fnames = [file_name]
@@ -449,7 +268,7 @@ def motion_correction(file_name, display_images=False):
     patch_motion_um = (100., 100.)  # patch size for non-rigid correction in um
 
     # motion correction parameters
-    pw_rigid = True  # flag to select rigid vs pw_rigid motion correction
+    # pw_rigid = True  # flag to select rigid vs pw_rigid motion correction
 
     # maximum allowed rigid shift in pixels
     max_shifts = [int(a / b) for a, b in zip(max_shift_um, dxy)]
@@ -466,38 +285,50 @@ def motion_correction(file_name, display_images=False):
     # size of filter, change this one if algorithm does not work
     gSig_filt = (3, 3)
 
-    mc_dict = {
-        'fnames': fnames,
-        'fr': fr,
-        'decay_time': decay_time,
-        'dxy': dxy,
-        'pw_rigid': pw_rigid,
-        'max_shifts': max_shifts,
-        'strides': strides,
-        'overlaps': overlaps,
-        'max_deviation_rigid': max_deviation_rigid,
-        # 'gSig_filt': gSig_filt,
-        'border_nan': 'copy'
+    # mc_dict = {
+    #     'fnames': fnames,
+    #     'fr': fr,
+    #     'decay_time': decay_time,
+    #     'dxy': dxy,
+    #     'pw_rigid': pw_rigid,
+    #     'max_shifts': max_shifts,
+    #     'strides': strides,
+    #     'overlaps': overlaps,
+    #     'max_deviation_rigid': max_deviation_rigid,
+    #     # 'gSig_filt': gSig_filt,
+    #     'border_nan': 'copy'
+    # }
+
+    params_dict = {
+        'data': {
+            'fnames': fnames,
+            'fr': fr,
+            'decay_time': decay_time,
+            'dxy': dxy
+        },
+        'motion': {
+            'pw_rigid': pw_rigid,
+            'max_shifts': max_shifts,
+            'strides': strides,
+            'overlaps': overlaps,
+            'max_deviation_rigid': max_deviation_rigid,
+            'border_nan': 'copy'
+        },
     }
 
-    opts = params.CNMFParams(params_dict=mc_dict)
-
+    opts = params.CNMFParams(params_dict=params_dict)
     # play the movie (optional)
     # playing the movie using opencv. It requires loading the movie in memory.
     # To close the video press q
 
     if display_images:
-        m_orig = cm.load_movie_chain(fnames)
+        m_orig = load_movie_chain(fnames)
         ds_ratio = 0.2
         moviehandle = m_orig.resize(1, 1, ds_ratio)
         moviehandle.play(q_max=99.5, fr=60, magnification=2)
 
     # start a cluster for parallel processing
-    print('')
-    print('==== START MOTION CORRECTION ====')
-    print('')
-
-    c, dview, n_processes = cm.cluster.setup_cluster(
+    c, dview, n_processes = setup_cluster(
         backend='multiprocessing', n_processes=None, single_thread=False)
 
     # MOTION CORRECTION
@@ -510,28 +341,24 @@ def motion_correction(file_name, display_images=False):
 
     # compare with original movie
     if display_images:
-        m_orig = cm.load_movie_chain(fnames)
-        m_els = cm.load(mc.mmap_file)
+        m_orig = load_movie_chain(fnames)
+        m_els = load(mc.mmap_file)
         ds_ratio = 0.2
-        moviehandle = cm.concatenate([m_orig.resize(1, 1, ds_ratio) - mc.min_mov * mc.nonneg_movie,
+        moviehandle = concatenate([m_orig.resize(1, 1, ds_ratio) - mc.min_mov * mc.nonneg_movie,
                                       m_els.resize(1, 1, ds_ratio)], axis=2)
         moviehandle.play(fr=60, q_max=99.5, magnification=2)  # press q to exit
 
     # Store corrected video to disk
     # Load the corrected memory-mapped file
-    corrected_movie = cm.load(mc.mmap_file)
+    corrected_movie = load(mc.mmap_file)
 
     # Normalize and convert to uint16 (if needed)
     corrected_array = corrected_movie - corrected_movie.min()
     corrected_array /= corrected_array.max()
     corrected_array = (corrected_array * 65535).astype(np.uint16)
 
-    print('==== FINISHED MOTION CORRECTION ====')
-    print('==== SAVING TIFF FILE .... ====')
-    print('')
-
     # Save as TIFF stack
-    output_path = f'{file_name[:-4]}_motion_corrected.tif'
+    # output_path = f'{file_name[:-4]}_motion_corrected.tif'
     tiff.imwrite(
         output_path,
         corrected_array,
@@ -547,8 +374,7 @@ def motion_correction(file_name, display_images=False):
         # description=None
     )
 
-    print(f"Corrected movie saved as {output_path}")
-    print('==== FINISHED ====')
+    stop_server(dview=dview)
 
 
 def run_OnACID(file_dir, parallel=True):
@@ -599,7 +425,7 @@ def run_OnACID(file_dir, parallel=True):
     print('\n==== FINISHED OnACID =====\n')
     # plot contours
     print(f'Number of components: {str(cnm.estimates.A.shape[-1])}')
-    Cn = cm_load(fname[0], subindices=slice(0, 500)).local_correlations(swap_dim=False)
+    Cn = load(fname[0], subindices=slice(0, 500)).local_correlations(swap_dim=False)
     # cnm.estimates.plot_contours(img=Cn)
 
 
@@ -620,8 +446,69 @@ def run_OnACID(file_dir, parallel=True):
         c.close()
 
 
+def batch_motion_correction(file_dir, dual_pass=False):
+    tif_files = [f for f in os.listdir(file_dir) if f.endswith('.tif')]
+    k = 0
+    if dual_pass:
+        pw_rigid = False
+    else:
+        pw_rigid = True
+
+    for f in tif_files:
+        k += 1
+        f_dir = f'{file_dir}/{f}'
+        motion_correction(
+            file_name=f_dir,
+            pw_rigid=pw_rigid,
+            display_images=False,
+            output_path=f'{f_dir[:-4]}_motion_corrected.tif'
+        )
+
+        if dual_pass:
+            pw_rigid = True
+            motion_correction(
+                file_name=f'{f_dir[:-4]}_motion_corrected.tif',
+                pw_rigid=pw_rigid,
+                display_images=False,
+                output_path=f'{f_dir[:-4]}_motion_corrected.tif'
+            )
+        print(f'FINISHED {k}/{len(tif_files)}')
+
+
+def batch_source_extraction(file_dir, save_dir):
+    tif_files = [f for f in os.listdir(file_dir) if f.endswith('.tif')]
+    k = 0
+
+    for f in tif_files:
+        t0 = time.perf_counter()
+        k += 1
+        f_dir = f'{file_dir}/{f}'
+
+        # Create Output Dir
+        sw_dir = f'{save_dir}/sw_{k:02}'
+        os.makedirs(sw_dir, exist_ok=True)
+        source_extraction(
+            file_name=f_dir,
+            save_dir=sw_dir,
+            visual_check=True,
+            parallel=True,
+            corr_map=True
+        )
+        t1 = time.perf_counter()
+        print(f'FINISHED {k}/{len(tif_files)}, this took {(t1 - t0)/60:.3f} minutes')
+
+
+
 def main():
-    warnings.filterwarnings("ignore", category=FutureWarning)
+    # warnings.filterwarnings("ignore", category=FutureWarning)
+    file_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/tiff_recordings/motion_corrected'
+    save_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/caiman_output'
+    # Batch Motion Correction
+    # batch_motion_correction(file_dir, dual_pass=False)
+    # exit()
+
+    # Batch ROI Detection and Source Extraction
+    batch_source_extraction(file_dir, save_dir)
 
     # motion_correction(
     #     file_name='D:/WorkingData/RoiDetection/test/rec/sw_25.tif',
@@ -630,16 +517,21 @@ def main():
 
     # run_OnACID(file_dir='D:/WorkingData/RoiDetection/test/rec/sw_25_motion_corrected.tif', parallel=False)
 
-    source_extraction(
-        file_name='D:/WorkingData/RoiDetection/test/rec/sw_25_motion_corrected.tif',
-        save_dir='D:/WorkingData/RoiDetection/test/rec/caiman_output',
-        visual_check=True,
-        parallel=False,
-        corr_map=False
-    )
+    # source_extraction(
+    #     file_name='D:/WorkingData/RoiDetection/test/rec/sw_25_motion_corrected.tif',
+    #     save_dir='D:/WorkingData/RoiDetection/test/rec/caiman_output',
+    #     visual_check=True,
+    #     parallel=False,
+    #     corr_map=False
+    # )
 
 
 if __name__ == "__main__":
+    t0 = time.perf_counter()
+    main()
+    t1 = time.perf_counter()
+    print(f'FINISHED {(t1 - t0)/60:.2f} minutes')
+
     import timeit
-    execution_time = timeit.timeit("main()", globals=globals(), number=1)
-    print(f"Execution time: {execution_time:.4f} seconds")
+    # execution_time = timeit.timeit("main()", globals=globals(), number=1)
+    # print(f"Execution time: {execution_time:.4f} seconds")

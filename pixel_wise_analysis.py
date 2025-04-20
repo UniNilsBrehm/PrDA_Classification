@@ -273,14 +273,14 @@ def plot_heat_maps(r2_map, slope_map, score_map, im, rois, save_dir):
     plt.close(fig)
 
 
-def plot_heat_maps_fixed_scale(r2_map, slope_map, score_map, im, v_min, v_max, save_dir):
+def plot_heat_maps_fixed_scale(r2_map, slope_map, score_map, im, v_min, v_max, save_dir, cmap='hot'):
     title_text = os.path.split(save_dir)[1]
-    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
+    fig, axs = plt.subplots(2, 2, figsize=(10, 10))
     fig.suptitle(title_text, fontsize=14)
     im0 = axs[0, 0].imshow(im, cmap='gray', vmin=im.min(), vmax=im.max() / 2)
-    im1 = axs[0, 1].imshow(r2_map, cmap='hot', vmin=v_min['r2'], vmax=v_max['r2'])
-    im2 = axs[1, 0].imshow(slope_map, cmap='hot', vmin=v_min['slope'], vmax=v_max['slope'])
-    im3 = axs[1, 1].imshow(score_map, cmap='hot', vmin=v_min['score'], vmax=v_max['score'])
+    im1 = axs[0, 1].imshow(r2_map, cmap=cmap, vmin=v_min['r2'], vmax=v_max['r2'])
+    im2 = axs[1, 0].imshow(slope_map, cmap=cmap, vmin=v_min['slope'], vmax=v_max['slope'])
+    im3 = axs[1, 1].imshow(score_map, cmap=cmap, vmin=v_min['score'], vmax=v_max['score'])
     fig.colorbar(im0, ax=axs[0, 0], fraction=0.046, pad=0.04, shrink=0.5)
     fig.colorbar(im1, ax=axs[0, 1], fraction=0.046, pad=0.04, shrink=0.5)
     fig.colorbar(im2, ax=axs[1, 0], fraction=0.046, pad=0.04, shrink=0.5)
@@ -293,12 +293,71 @@ def plot_heat_maps_fixed_scale(r2_map, slope_map, score_map, im, v_min, v_max, s
     plt.savefig(save_dir, dpi=600)
     plt.close(fig)
 
+def plot_single_heat_maps_fixed_scale(v_map, v_min, v_max, save_dir, cmap='hot'):
+    fig, axs = plt.subplots(figsize=(5, 5))
+    plt.axis('off')  # remove axes and ticks
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)  # remove padding/margins
+    axs.imshow(v_map, cmap=cmap, vmin=v_min, vmax=v_max)
+    plt.tight_layout()
+    plt.savefig(save_dir, dpi=600, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
 
 def linear_scoring_pixel_wise(rec, reg):
     # _, cirf = calcium_impulse_response(tau_rise=3, tau_decay=6, norm=True, sampling_rate=3)
     r2_map, slope_map = pixelwise_regression_parallel(rec, reg)
     score_map = r2_map * slope_map
     return r2_map, slope_map, score_map
+
+def linear_scoring_px_mean_activity_map(tiff_file, save_dir):
+    tif_rec = load_tiff_recording(tiff_file, flatten=True)
+    rec = normalize_image(tif_rec)
+
+    # Linear Scoring with Mean Activity
+    mean_trace = norm_min_max(np.mean(rec, axis=(1, 2)))
+    mean_image = norm_min_max(np.mean(rec, axis=0))
+    mean_r2_map, mean_slope_map, mean_score_map = linear_scoring_pixel_wise(rec, mean_trace)
+
+    v_min = {'r2': 0, 'slope': 0, 'score': 0}
+    v_max = {'r2': 0.3, 'slope': 0.3, 'score': 0.02}
+
+    # Store mean activity heatmaps
+    f_name = f'{save_dir}/px_mean_activity_maps'
+    plot_heat_maps_fixed_scale(
+        mean_r2_map,
+        mean_slope_map,
+        mean_score_map,
+        mean_image,
+        v_min=v_min,
+        v_max=v_max,
+        save_dir=f_name,
+        cmap='gray'
+    )
+
+    f = f'{save_dir}/px_r2_mean_activity_map'
+    plot_single_heat_maps_fixed_scale(mean_r2_map, v_min['r2'], v_max['r2'], save_dir=f, cmap='gray')
+
+    f = f'{save_dir}/px_slope_mean_activity_map'
+    plot_single_heat_maps_fixed_scale(mean_slope_map, v_min['slope'], v_max['slope'], save_dir=f, cmap='gray')
+
+    f = f'{save_dir}/px_score_mean_activity_map'
+    plot_single_heat_maps_fixed_scale(mean_score_map, v_min['score'], v_max['score'], save_dir=f, cmap='gray')
+
+
+def batch_mean_activity(file_dir, save_dir):
+    import time
+    tif_files = [f for f in os.listdir(file_dir) if f.endswith('.tif')]
+    k = 0
+
+    for f in tif_files:
+        k += 1
+        sw_dir = f'{save_dir}/sw_{k:02}'
+        os.makedirs(sw_dir, exist_ok=True)
+        t0 = time.perf_counter()
+        f_dir = f'{file_dir}/{f}'
+        linear_scoring_px_mean_activity_map(f_dir, sw_dir)
+        t1 = time.perf_counter()
+        print(f'FINISHED {k}/{len(tif_files)}, this took {(t1 - t0)/60:.3f} minutes')
 
 
 def roi_detection():
@@ -470,7 +529,11 @@ def run_pixel_regression():
 
 
 def main():
-    roi_detection()
+    file_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/tiff_recordings/motion_corrected'
+    save_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/caiman_output'
+
+    batch_mean_activity(file_dir, save_dir=save_dir)
+    # roi_detection()
     # run_pixel_regression()
 
 
