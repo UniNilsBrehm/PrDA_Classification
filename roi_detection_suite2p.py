@@ -1,3 +1,4 @@
+
 import suite2p
 import numpy as np
 import os
@@ -331,15 +332,16 @@ def batch_suite2p(save_dir):
         validate_results(sw_dir)
         t1 = time.perf_counter()
         print(f'FINISHED {k}/{len(sw)}, this took {(t1 - t0)/60:.3f} minutes')
-
+        t1 = time.perf_counter()
+        print(f'This took: {(t1-t0)/60:.2f} minutes')
 
 
 
 def main():
     # Batch Detection
     # file_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/tiff_recordings/motion_corrected'
-    save_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/caiman_output'
-    batch_suite2p(save_dir)
+    base_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection'
+    batch_suite2p(base_dir)
 
     # run_suite2p_detection()
     # validate_results(rec_dir='D:/WorkingData/RoiDetection/test/rec')

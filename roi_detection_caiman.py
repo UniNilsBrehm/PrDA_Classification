@@ -53,6 +53,10 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
 
     # File Name
     f_names = [file_name]
+    if len(f_names) <= 0:
+        print('\n==== ERROR: No tiff file recording found =====\n')
+        return
+
     cmap = 'gray'
 
     # SETTINGS
@@ -98,9 +102,6 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
             'use_cnn': True,  # use the CNN classifier (prob. of component being a neuron)
             'min_cnn_thr': 0.9,   # Only components with CNN scores ≥ thr are accepted as likely real neurons.
             'cnn_lowest': 0.1  # Components scoring < lowest are considered garbage and won’t be touched even during manual curation or re-evaluation.
-        },
-        'general': {
-            'use_cuda': True
         },
     }
 
@@ -475,40 +476,64 @@ def batch_motion_correction(file_dir, dual_pass=False):
         print(f'FINISHED {k}/{len(tif_files)}')
 
 
-def batch_source_extraction(file_dir, save_dir):
-    tif_files = [f for f in os.listdir(file_dir) if f.endswith('.tif')]
+def batch_source_extraction(base_dir):
+    # tif_files = [f for f in os.listdir(file_dir) if f.endswith('.tif')]
+    # k = 0
+    #
+    # for f in tif_files:
+    #     t0 = time.perf_counter()
+    #     k += 1
+    #     f_dir = f'{file_dir}/{f}'
+    #
+    #     # Create Output Dir
+    #     sw_dir = f'{save_dir}/sw_{k:02}'
+    #     os.makedirs(sw_dir, exist_ok=True)
+    #     source_extraction(
+    #         file_name=f_dir,
+    #         save_dir=sw_dir,
+    #         visual_check=True,
+    #         parallel=True,
+    #         corr_map=True
+    #     )
+    #     t1 = time.perf_counter()
+    #     print(f'FINISHED {k}/{len(tif_files)}, this took {(t1 - t0)/60:.3f} minutes')
+    import time
+    sw_list = os.listdir(base_dir)
     k = 0
 
-    for f in tif_files:
+    for sw in sw_list:
         t0 = time.perf_counter()
         k += 1
-        f_dir = f'{file_dir}/{f}'
-
-        # Create Output Dir
-        sw_dir = f'{save_dir}/sw_{k:02}'
-        os.makedirs(sw_dir, exist_ok=True)
-        source_extraction(
-            file_name=f_dir,
-            save_dir=sw_dir,
-            visual_check=True,
-            parallel=True,
-            corr_map=True
-        )
-        t1 = time.perf_counter()
-        print(f'FINISHED {k}/{len(tif_files)}, this took {(t1 - t0)/60:.3f} minutes')
-
+        sw_dir = f'{base_dir}/{sw}'
+        rec_dir = f'{sw_dir}/rec'
+        tif_file = os.listdir(rec_dir)
+        if len(tif_file) == 0:
+            print(f'\n==== ERROR: TIFF FILE RECORDING NOT FOUND! ({sw})=====\n')
+            continue
+        else:
+            tif_dir = f'{rec_dir}/{tif_file[0]}'
+            output_folder = f'{sw_dir}/caiman_output'
+            os.makedirs(output_folder, exist_ok=True)
+            source_extraction(
+                file_name=tif_dir,
+                save_dir=output_folder,
+                visual_check=True,
+                parallel=True,
+                corr_map=True
+            )
+            t1 = time.perf_counter()
+            print(f'FINISHED {k}/{len(sw_list)}, this took {(t1 - t0)/60:.3f} minutes')
 
 
 def main():
     # warnings.filterwarnings("ignore", category=FutureWarning)
-    file_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/tiff_recordings/motion_corrected'
-    save_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/caiman_output'
+    base_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection'
     # Batch Motion Correction
     # batch_motion_correction(file_dir, dual_pass=False)
     # exit()
 
     # Batch ROI Detection and Source Extraction
-    batch_source_extraction(file_dir, save_dir)
+    batch_source_extraction(base_dir)
 
     # motion_correction(
     #     file_name='D:/WorkingData/RoiDetection/test/rec/sw_25.tif',

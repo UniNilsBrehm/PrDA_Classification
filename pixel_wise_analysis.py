@@ -344,20 +344,28 @@ def linear_scoring_px_mean_activity_map(tiff_file, save_dir):
     plot_single_heat_maps_fixed_scale(mean_score_map, v_min['score'], v_max['score'], save_dir=f, cmap='gray')
 
 
-def batch_mean_activity(file_dir, save_dir):
+def batch_mean_activity(base_dir):
     import time
-    tif_files = [f for f in os.listdir(file_dir) if f.endswith('.tif')]
+    sw_list = os.listdir(base_dir)
     k = 0
 
-    for f in tif_files:
-        k += 1
-        sw_dir = f'{save_dir}/sw_{k:02}'
-        os.makedirs(sw_dir, exist_ok=True)
+    for sw in sw_list:
         t0 = time.perf_counter()
-        f_dir = f'{file_dir}/{f}'
-        linear_scoring_px_mean_activity_map(f_dir, sw_dir)
-        t1 = time.perf_counter()
-        print(f'FINISHED {k}/{len(tif_files)}, this took {(t1 - t0)/60:.3f} minutes')
+        k += 1
+        sw_dir = f'{base_dir}/{sw}'
+        rec_dir = f'{sw_dir}/rec'
+        tif_file = os.listdir(rec_dir)
+        if len(tif_file) == 0:
+            print(f'\n==== ERROR: TIFF FILE RECORDING NOT FOUND! ({sw})=====\n')
+            continue
+        else:
+            tif_dir = f'{rec_dir}/{tif_file[0]}'
+            output_folder = f'{sw_dir}/px_linear_scoring'
+            os.makedirs(output_folder, exist_ok=True)
+            linear_scoring_px_mean_activity_map(tif_dir, output_folder)
+
+            t1 = time.perf_counter()
+            print(f'FINISHED {k}/{len(sw_list)}, this took {(t1 - t0)/60:.3f} minutes')
 
 
 def roi_detection():
@@ -529,12 +537,8 @@ def run_pixel_regression():
 
 
 def main():
-    file_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/tiff_recordings/motion_corrected'
-    save_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/caiman_output'
-
-    batch_mean_activity(file_dir, save_dir=save_dir)
-    # roi_detection()
-    # run_pixel_regression()
+    data_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection'
+    batch_mean_activity(data_dir)
 
 
 if __name__ == "__main__":
