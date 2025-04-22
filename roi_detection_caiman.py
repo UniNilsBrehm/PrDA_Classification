@@ -135,6 +135,7 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
     cnm.estimates.evaluate_components(images, cnm.params, dview=dview)
 
     # 4. Visualize components
+    plt.ioff()  # Turn off interactive mode
     if visual_check:
         if corr_map:
             print('\n==== VISUAL VALIDATION =====\n')
