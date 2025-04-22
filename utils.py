@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pickle
 import os
 import pandas as pd
+import tifffile as tiff
 from scipy import signal
 from scipy.stats import gaussian_kde
 from IPython import embed
@@ -514,3 +515,32 @@ def detect_peaks(data, height=None, distance=None, width=None, prominence=None, 
         properties['right_ips'] = widths_result[3]
 
     return {'peaks': peaks, 'properties': properties}
+
+
+def load_tiff_recording(file_name, flatten=False):
+    all_frames = []
+
+    with tiff.TiffFile(file_name) as tif:
+        for i, series in enumerate(tif.series):
+            # print(f"Series {i} shape: {series.shape}")
+            data = series.asarray()
+            all_frames.append(data)
+
+    # Flatten the list if needed
+    if flatten:
+        frames = np.concatenate(all_frames, axis=0).view(np.uint16)
+    else:
+        frames = np.array(all_frames)
+
+    return frames
+
+
+def generate_sweep_directory_list(prefix, sweep_range=(1, 20), numbering='02'):
+    folder_names = [f"{prefix}_{i:{numbering}}" for i in range(sweep_range[0], sweep_range[1])]
+    return folder_names
+
+
+def generate_folders(folder_names, parent_dir):
+    for folder in folder_names:
+        folder_path = os.path.join(parent_dir, folder)
+        os.makedirs(folder_path, exist_ok=True)  # won't error if folder already exists

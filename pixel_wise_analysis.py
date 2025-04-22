@@ -10,7 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import tifffile as tiff
 from IPython import embed
-from utils import calcium_impulse_response, create_regressors_from_binary, norm_min_max, load_hdf5_as_dict
+from utils import calcium_impulse_response, create_regressors_from_binary, norm_min_max, load_hdf5_as_dict, load_tiff_recording
 from skimage.exposure import rescale_intensity
 import statsmodels.api as sm
 from scipy.stats import linregress
@@ -84,24 +84,6 @@ def normalize_image(img, dtype=np.float32):
     """
     img = img.astype(np.float32)
     return rescale_intensity(img, in_range='image', out_range=(0.0, 1.0)).astype(dtype)
-
-
-def load_tiff_recording(file_name, flatten=False):
-    all_frames = []
-
-    with tiff.TiffFile(file_name) as tif:
-        for i, series in enumerate(tif.series):
-            # print(f"Series {i} shape: {series.shape}")
-            data = series.asarray()
-            all_frames.append(data)
-
-    # Flatten the list if needed
-    if flatten:
-        frames = np.concatenate(all_frames, axis=0).view(np.uint16)
-    else:
-        frames = np.array(all_frames)
-
-    return frames
 
 
 def compute_pixel_r2(signal, regressor):
@@ -293,6 +275,7 @@ def plot_heat_maps_fixed_scale(r2_map, slope_map, score_map, im, v_min, v_max, s
     plt.savefig(save_dir, dpi=600)
     plt.close(fig)
 
+
 def plot_single_heat_maps_fixed_scale(v_map, v_min, v_max, save_dir, cmap='hot'):
     fig, axs = plt.subplots(figsize=(5, 5))
     plt.axis('off')  # remove axes and ticks
@@ -308,6 +291,7 @@ def linear_scoring_pixel_wise(rec, reg):
     r2_map, slope_map = pixelwise_regression_parallel(rec, reg)
     score_map = r2_map * slope_map
     return r2_map, slope_map, score_map
+
 
 def linear_scoring_px_mean_activity_map(tiff_file, save_dir):
     tif_rec = load_tiff_recording(tiff_file, flatten=True)

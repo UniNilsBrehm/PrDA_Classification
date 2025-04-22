@@ -311,6 +311,7 @@ def run_suite2p_detection():
         output_folder=rec_dir,
     )
 
+
 def validate_results(rec_dir):
     # rec_dir = 'D:/WorkingData/RoiDetection/test/rec'
     check_detection(output_folder=rec_dir, cmap='gray')

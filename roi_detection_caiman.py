@@ -28,7 +28,7 @@ import os
 import tifffile as tiff
 import time
 import warnings
-from utils import load_hdf5_as_dict
+from utils import load_tiff_recording
 from IPython import embed
 
 # import caiman as cm
@@ -96,11 +96,11 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
         },
         'quality': {
             'SNR_lowest': 1.0,  # minimum required trace SNR. Traces with SNR below this will get rejected
-            'min_SNR': 2.5,  # peak SNR for accepted components (if above this, accept)
+            'min_SNR': 2.0,  # peak SNR for accepted components (if above this, accept)
             'rval_lowest': 0.2,  # minimum required space correlation. Components with correlation below this will get rejected
             'rval_thr': 0.8,  # spatial footprint consistency: space correlation threshold (if above this, accept)
             'use_cnn': True,  # use the CNN classifier (prob. of component being a neuron)
-            'min_cnn_thr': 0.9,   # Only components with CNN scores ≥ thr are accepted as likely real neurons.
+            'min_cnn_thr': 0.8,   # Only components with CNN scores ≥ thr are accepted as likely real neurons.
             'cnn_lowest': 0.1  # Components scoring < lowest are considered garbage and won’t be touched even during manual curation or re-evaluation.
         },
     }
@@ -160,6 +160,9 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
         save_contour_plot(cnm, mean_image, f'{save_dir}/caiman_mean_img_contour_plot.jpg', cmap=cmap)
         save_roi_centers_plot(component_centers[good_idx], mean_image, file_dir=f'{save_dir}/caiman_mean_img_rois_center.jpg', marker_size=30, cmap=cmap)
 
+        # View components
+        # cnm.estimates.view_components(images, idx=cnm.estimates.idx_components, img=Cn)
+
         if corr_map:
             save_contour_plot(cnm, Cn, f'{save_dir}/corr_contour_plot.jpg', cmap=cmap)
             save_roi_centers_plot(component_centers[good_idx], Cn, file_dir=f'{save_dir}/caiman_corr_rois_center.jpg', marker_size=30, cmap=cmap)
@@ -181,8 +184,8 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
         # print('Movie Stored to Disk')
         # write_video_from_array(v, f'{save_dir}/movie.mp4', fps=10)
 
+    # 5. Save results
     print('\n==== SAVING RESULTS =====\n')
-    # 5. Save results (optional)
     cnm.save(f'{save_dir}/cnmf_full_pipeline_results.hdf5')
     # Save manual curation
     # cnm.save(f'{save_dir}/cnmf_curated.hdf5')
@@ -191,7 +194,6 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
         np.save(f'{save_dir}/caiman_local_correlation_map.npy', Cn)
 
     # 6. Save ROI Traces
-
     # Export de-noised traces (C)
     # raw_traces = cnm.estimates.A.T @ Yr
     C = cnm.estimates.C  # shape (n_neurons, n_frames)
@@ -210,12 +212,6 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
     if parallel:
         # Stop the cluster
         stop_server(dview=dview)
-
-
-def inspect_caiman_results(file_dir, bg_image):
-    # from caiman.source_extraction.cnmf.cnmf import load_CNMF
-    cnm = cnmf.load_CNMF(file_dir)
-    cnm.estimates.view_components(img=bg_image, idx=cnm.estimates.idx_components, cmap='viridis')
 
 
 def save_roi_centers_plot(centers, bg_image, file_dir, marker_size=20, cmap='gray'):
@@ -284,21 +280,7 @@ def motion_correction(file_name, pw_rigid, output_path, display_images=False):
     max_deviation_rigid = 3
 
     # size of filter, change this one if algorithm does not work
-    gSig_filt = (3, 3)
-
-    # mc_dict = {
-    #     'fnames': fnames,
-    #     'fr': fr,
-    #     'decay_time': decay_time,
-    #     'dxy': dxy,
-    #     'pw_rigid': pw_rigid,
-    #     'max_shifts': max_shifts,
-    #     'strides': strides,
-    #     'overlaps': overlaps,
-    #     'max_deviation_rigid': max_deviation_rigid,
-    #     # 'gSig_filt': gSig_filt,
-    #     'border_nan': 'copy'
-    # }
+    # gSig_filt = (3, 3)
 
     params_dict = {
         'data': {
@@ -447,7 +429,125 @@ def run_OnACID(file_dir, parallel=True):
         c.close()
 
 
+def view_caiman_results(sw_dir, save_accepted=True, view_components=True):
+    from caiman.source_extraction.cnmf.cnmf import load_CNMF
+    import read_roi
+    from matplotlib.path import Path
+
+    file_dir = f'{sw_dir}/caiman_output/cnmf_full_pipeline_results.hdf5'
+    tif_file_dir = f'{sw_dir}/rec/'
+    tif_file = f'{tif_file_dir}/{os.listdir(tif_file_dir)[0]}'
+    neuropil_roi_dir = f'{sw_dir}/neuropil.roi'
+
+    # Load Data
+    cnm = load_CNMF(file_dir)
+    tif_rec = load_tiff_recording(tif_file, flatten=True)
+    try:
+        neuropil_roi = read_roi.read_roi_file(neuropil_roi_dir)
+    except FileNotFoundError:
+        print(f'ERROR in {sw_dir}')
+        print('COULD NOT FINED IMAGEJ ROI FILE')
+        return
+
+    mean_image = np.mean(tif_rec, axis=0)
+
+    idx_components = cnm.estimates.idx_components
+    component_centers = cnm.estimates.center[idx_components]
+    df_centers = pd.DataFrame(component_centers, columns=["y", "x"])  # CaImAn uses (row, col)
+
+    # Neuropil detection
+    # --- 1. Load and parse neuropil ROI polygon ---
+    neuropil = neuropil_roi['neuropil']
+    polygon_x = np.array(neuropil['x'])
+    polygon_y = np.array(neuropil['y'])
+    polygon_vertices = np.column_stack((polygon_x, polygon_y))
+    neuropil_path = Path(polygon_vertices)
+
+    # --- 2. Convert CaImAn (y, x) component centers to (x, y) for polygon check ---
+    component_xy = df_centers[["x", "y"]].values  # Now in (x, y)
+
+    # --- 3. Check which components are inside the neuropil polygon ---
+    inside_mask = neuropil_path.contains_points(component_xy)
+
+    # --- 4. Create a DataFrame with the result ---
+    df_centers["inside_neuropil"] = inside_mask
+
+    # Optional: Filter just inside or outside
+    df_inside = df_centers[df_centers["inside_neuropil"]]
+    df_outside = df_centers[~df_centers["inside_neuropil"]]
+
+    if save_accepted:
+        # --- Plot setup ---
+        plt.ioff()  # Turn off interactive mode
+        fig, ax = plt.subplots(figsize=(10, 10))
+        ax.imshow(mean_image, cmap='gray', origin='upper')  # Show the mean image
+
+        # --- Plot neuropil ROI polygon outline ---
+        ax.plot(neuropil['x'] + [neuropil['x'][0]],  # x becomes col
+                neuropil['y'] + [neuropil['y'][0]],  # y becomes row
+                linestyle='--', color='cyan', linewidth=2, label='Neuropil ROI')
+
+        # --- Plot component centers ---
+        # Flip x and y back for plotting (since image is row=y, col=x)
+        ax.scatter(df_inside["x"], df_inside["y"], c='lime', s=20, label='Inside Neuropil', alpha=0.7)
+        ax.scatter(df_outside["x"], df_outside["y"], c='red', s=20, label='Outside Neuropil', alpha=0.7)
+
+        # --- Labels and legend ---
+        ax.set_title("Component Centers Overlaid on Mean Image", fontsize=14)
+        ax.legend(loc='upper right')
+        ax.axis('off')
+
+        plt.tight_layout()
+        plt.savefig(f'{sw_dir}/caiman_output/neuropil_detection.jpg', dpi=300)
+        plt.close(fig)
+
+        # Get accepted components
+        # A_accepted = cnm.estimates.A[:, idx_components]
+        C_accepted = cnm.estimates.C[idx_components]
+
+        # Separate traces
+        C_inside = C_accepted[inside_mask, :]  # Traces for components inside neuropil
+        C_outside = C_accepted[~inside_mask, :]  # Traces for components outside neuropil
+
+        # pd.DataFrame(C_accepted.T).to_csv(f"{sw_dir}/caiman_output/accepted_caiman_ca_traces.csv", index=False)
+        pd.DataFrame(C_inside.T).to_csv(f"{sw_dir}/caiman_output/neuropil_caiman_ca_traces.csv", index=False)
+        pd.DataFrame(C_outside.T).to_csv(f"{sw_dir}/caiman_output/cells_caiman_ca_traces.csv", index=False)
+
+        # Export component centers (x, y)
+        df_centers_inside = pd.DataFrame(component_centers[inside_mask, :], columns=["y", "x"])
+        df_centers_outside = pd.DataFrame(component_centers[~inside_mask, :], columns=["y", "x"])
+        df_centers_inside.to_csv(f'{sw_dir}/caiman_output/neuropil_caiman_roi_centers.csv', index=False)
+        df_centers_outside .to_csv(f'{sw_dir}/caiman_output/cells_caiman_roi_centers.csv', index=False)
+
+        print('\n==== STORED ACCEPTED ROI DATA TO DISK =====\n')
+
+    if view_components:
+        # View components (accepted)
+        print('\n To view components enter: \n')
+        print('"c_viewer(cnm, tif_rec, mean_image)"\n')
+        embed()
+        exit()
+        c_viewer(cnm, tif_rec, mean_image)
+
+
+def c_viewer(cnm, tif_rec, mean_image):
+    cnm.estimates.view_components(tif_rec, idx=cnm.estimates.idx_components, img=mean_image)
+
+
 def batch_motion_correction(file_dir, dual_pass=False):
+    """
+    Batch Motion Correction of Recordings (tif file) using CAIMAN. It will look for tif files in "file_dir".
+    It will store the motion corrected tif file in the same directory adding "_motion_corrected" to the name.
+
+    Parameters
+    ----------
+    file_dir: Directory containing the tif files
+    dual_pass: if set to TRUE, it will run motion detection twice, to improve results.
+
+    Returns
+    -------
+
+    """
     tif_files = [f for f in os.listdir(file_dir) if f.endswith('.tif')]
     k = 0
     if dual_pass:
@@ -477,26 +577,29 @@ def batch_motion_correction(file_dir, dual_pass=False):
 
 
 def batch_source_extraction(base_dir):
-    # tif_files = [f for f in os.listdir(file_dir) if f.endswith('.tif')]
-    # k = 0
-    #
-    # for f in tif_files:
-    #     t0 = time.perf_counter()
-    #     k += 1
-    #     f_dir = f'{file_dir}/{f}'
-    #
-    #     # Create Output Dir
-    #     sw_dir = f'{save_dir}/sw_{k:02}'
-    #     os.makedirs(sw_dir, exist_ok=True)
-    #     source_extraction(
-    #         file_name=f_dir,
-    #         save_dir=sw_dir,
-    #         visual_check=True,
-    #         parallel=True,
-    #         corr_map=True
-    #     )
-    #     t1 = time.perf_counter()
-    #     print(f'FINISHED {k}/{len(tif_files)}, this took {(t1 - t0)/60:.3f} minutes')
+    """
+    Batch Source Extraction using CAIMAN. The settings for CAIMAN need to be set in the source_extraction().
+
+    Note: source_extraction(corr_map=True) will computational intensive, since the correlation is slow. Skip if you do
+    not need it.
+
+    Results: In each recoding directory it will create a caiman_output directory containing:
+    - hdf5 file with all caiman results
+    - figures (jpeg) showing ROI detection
+    - csv file with all extracted fluorescence traces of all ROIs
+    - csv file with the ROI centers (pixel)
+    - npy file with the correlation map (each pixel and its 8 neighbours)
+
+    Parameters
+    ----------
+    base_dir: Directory containing all recordings. Each recording needs its own directory.
+    e.g. base_dir contains: /sw_01 and /sw_02 ...
+    Each recording needs: /sw_01/rec/recording.tif
+
+    Returns
+    -------
+
+    """
     import time
     sw_list = os.listdir(base_dir)
     k = 0
@@ -525,30 +628,31 @@ def batch_source_extraction(base_dir):
             print(f'FINISHED {k}/{len(sw_list)}, this took {(t1 - t0)/60:.3f} minutes')
 
 
+def batch_check_results(base_dir):
+    sw_list = os.listdir(base_dir)
+    for sw in sw_list:
+        sw_dir = f'{base_dir}/{sw}'
+        view_caiman_results(sw_dir, save_accepted=True, view_components=False)
+        print(f'Finished {sw}')
+
+
 def main():
     # warnings.filterwarnings("ignore", category=FutureWarning)
-    base_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection'
+    base_dir = 'D:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection'
+    file_dir = 'D:/WorkingData/Tec_Data/Neuropil_LTe_Ca_imaging/tiff_stacks/unregistered'
     # Batch Motion Correction
-    # batch_motion_correction(file_dir, dual_pass=False)
-    # exit()
+    batch_motion_correction(file_dir, dual_pass=False)
+    exit()
 
     # Batch ROI Detection and Source Extraction
-    batch_source_extraction(base_dir)
+    # batch_source_extraction(base_dir)
 
-    # motion_correction(
-    #     file_name='D:/WorkingData/RoiDetection/test/rec/sw_25.tif',
-    #     display_images=False
-    # )
+    # Batch Check Results
+    # batch_check_results(base_dir)
 
-    # run_OnACID(file_dir='D:/WorkingData/RoiDetection/test/rec/sw_25_motion_corrected.tif', parallel=False)
-
-    # source_extraction(
-    #     file_name='D:/WorkingData/RoiDetection/test/rec/sw_25_motion_corrected.tif',
-    #     save_dir='D:/WorkingData/RoiDetection/test/rec/caiman_output',
-    #     visual_check=True,
-    #     parallel=False,
-    #     corr_map=False
-    # )
+    # View Results
+    # sw_dir = 'D:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection/sw_24'
+    # view_caiman_results(sw_dir, save_accepted=False, view_components=True)
 
 
 if __name__ == "__main__":
@@ -557,6 +661,3 @@ if __name__ == "__main__":
     t1 = time.perf_counter()
     print(f'FINISHED {(t1 - t0)/60:.2f} minutes')
 
-    import timeit
-    # execution_time = timeit.timeit("main()", globals=globals(), number=1)
-    # print(f"Execution time: {execution_time:.4f} seconds")
