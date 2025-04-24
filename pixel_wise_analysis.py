@@ -521,7 +521,8 @@ def run_pixel_regression():
 
 
 def main():
-    data_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection'
+    # data_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection'
+    data_dir = 'D:/WorkingData/TestData_KL/data'
     batch_mean_activity(data_dir)
 
 

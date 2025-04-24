@@ -28,6 +28,7 @@ import os
 import tifffile as tiff
 import time
 import warnings
+import yaml
 from utils import load_tiff_recording
 from IPython import embed
 
@@ -41,7 +42,7 @@ from caiman.source_extraction import cnmf as o_cnmf
 from caiman.summary_images import local_correlations_movie_offline
 
 
-def source_extraction(file_name, save_dir, visual_check=True, parallel=True, corr_map=False):
+def source_extraction(file_name, save_dir, params_dict=None, visual_check=True, parallel=True, corr_map=False):
     # start a cluster
     if parallel:
         c, dview, n_processes = setup_cluster(
@@ -58,52 +59,56 @@ def source_extraction(file_name, save_dir, visual_check=True, parallel=True, cor
         return
 
     cmap = 'gray'
+    # cmap = 'hot'
 
-    # SETTINGS
-    params_dict = {
-        'data': {
-            'fnames': f_names,
-            'fr': 3,
-            'decay_time': 5
-        },
-        'init': {
-            'K': 100,  # expected # of neurons per patch
-            'gSig': [2, 2],  # expected half size of neurons in px
-            # 'method_init': 'corr_pnr',   # correlation-based initialization, patching should be avoided here
-            'method_init': 'greedy_roi',
-            'min_corr': 0.8,  # min local correlation for seed
-            'min_pnr': 10,  # min peak-to-noise ratio for seed
-            'ssub': 2,  # spatial subsampling during initialization (use every 2nd pixel → half resolution)
-            'tsub': 2,   # temporal subsampling during initialization (average every 2 frames)
-            'nb': 2,  # global background order
-            'normalize_init': True,  # z score data, do not use with CNMF-E Background Ring Model
-        },
-        'online': {
-            'ring_CNN': False  # CNMF-E Background Ring Model, if False, use global low-rank background modeling
-        },
-        'patch': {
-            'n_processes': None,
-            'rf': None,  # half size of each patch (should be ≥ 2× gSig)
-            'stride': None  # overlap between patches ( 1- stride/rf), (typically 50% of rf)
-            # 'rf': 16,  # half size of each patch (should be ≥ 2× gSig)
-            # 'stride': 8  # overlap between patches ( 1- stride/rf), (typically 50% of rf)
-        },
-        'merging': {
-            'merge_thr': 0.8  # merging threshold, max correlation allowed
-        },
-        'temporal': {
-            'p': 1,  # order of the autoregressive system
-        },
-        'quality': {
-            'SNR_lowest': 1.0,  # minimum required trace SNR. Traces with SNR below this will get rejected
-            'min_SNR': 2.0,  # peak SNR for accepted components (if above this, accept)
-            'rval_lowest': 0.2,  # minimum required space correlation. Components with correlation below this will get rejected
-            'rval_thr': 0.8,  # spatial footprint consistency: space correlation threshold (if above this, accept)
-            'use_cnn': True,  # use the CNN classifier (prob. of component being a neuron)
-            'min_cnn_thr': 0.8,   # Only components with CNN scores ≥ thr are accepted as likely real neurons.
-            'cnn_lowest': 0.1  # Components scoring < lowest are considered garbage and won’t be touched even during manual curation or re-evaluation.
-        },
-    }
+    if params_dict is None:
+        # SETTINGS
+        params_dict = {
+            'data': {
+                'fnames': f_names,
+                'fr': 3,
+                'decay_time': 5
+            },
+            'init': {
+                'K': 100,  # expected # of neurons per patch
+                'gSig': [2, 2],  # expected half size of neurons in px
+                # 'method_init': 'corr_pnr',   # correlation-based initialization, patching should be avoided here
+                'method_init': 'greedy_roi',
+                'min_corr': 0.8,  # min local correlation for seed
+                'min_pnr': 10,  # min peak-to-noise ratio for seed
+                'ssub': 2,  # spatial subsampling during initialization (use every 2nd pixel → half resolution)
+                'tsub': 2,   # temporal subsampling during initialization (average every 2 frames)
+                'nb': 2,  # global background order
+                'normalize_init': True,  # z score data, do not use with CNMF-E Background Ring Model
+            },
+            'online': {
+                'ring_CNN': False  # CNMF-E Background Ring Model, if False, use global low-rank background modeling
+            },
+            'patch': {
+                'n_processes': None,
+                'rf': None,  # half size of each patch (should be ≥ 2× gSig)
+                'stride': None  # overlap between patches ( 1- stride/rf), (typically 50% of rf)
+                # 'rf': 16,  # half size of each patch (should be ≥ 2× gSig)
+                # 'stride': 8  # overlap between patches ( 1- stride/rf), (typically 50% of rf)
+            },
+            'merging': {
+                'merge_thr': 0.8  # merging threshold, max correlation allowed
+            },
+            'temporal': {
+                'p': 1,  # order of the autoregressive system
+            },
+            'quality': {
+                'SNR_lowest': 1.0,  # minimum required trace SNR. Traces with SNR below this will get rejected
+                'min_SNR': 2.0,  # peak SNR for accepted components (if above this, accept)
+                'rval_lowest': 0.2,  # minimum required space correlation. Components with correlation below this will get rejected
+                'rval_thr': 0.8,  # spatial footprint consistency: space correlation threshold (if above this, accept)
+                'use_cnn': True,  # use the CNN classifier (prob. of component being a neuron)
+                'min_cnn_thr': 0.8,   # Only components with CNN scores ≥ thr are accepted as likely real neurons.
+                'cnn_lowest': 0.1  # Components scoring < lowest are considered garbage and won’t be touched even during manual curation or re-evaluation.
+            },
+        }
+    else:
+        params_dict['data']['fnames'] = f_names
 
     opts = params.CNMFParams(params_dict=params_dict)
 
@@ -549,6 +554,7 @@ def batch_motion_correction(file_dir, dual_pass=False):
     -------
 
     """
+    print('\n ==== STARTING CAIMAN MOTION CORRECTION ==== \n')
     tif_files = [f for f in os.listdir(file_dir) if f.endswith('.tif')]
     k = 0
     if dual_pass:
@@ -577,7 +583,7 @@ def batch_motion_correction(file_dir, dual_pass=False):
         print(f'FINISHED {k}/{len(tif_files)}')
 
 
-def batch_source_extraction(base_dir):
+def batch_source_extraction(base_dir, settings_dir=None):
     """
     Batch Source Extraction using CAIMAN. The settings for CAIMAN need to be set in the source_extraction().
 
@@ -593,6 +599,7 @@ def batch_source_extraction(base_dir):
 
     Parameters
     ----------
+    settings_dir:
     base_dir: Directory containing all recordings. Each recording needs its own directory.
     e.g. base_dir contains: /sw_01 and /sw_02 ...
     Each recording needs: /sw_01/rec/recording.tif
@@ -602,6 +609,18 @@ def batch_source_extraction(base_dir):
 
     """
     import time
+    print('\n ==== STARTING CAIMAN SOURCE EXTRACTION ==== \n')
+
+    # Loading Setting text file
+    if settings_dir is not None:
+        try:
+            with open(settings_dir, 'r') as f:
+                params_dict = yaml.safe_load(f)
+            print(f'\n ==== SETTINGS: {settings_dir} ==== \n')
+        except FileNotFoundError:
+            print('\n ==== ERROR: COULD NOT FIND SETTINGS FILE ==== \n')
+            return
+
     sw_list = os.listdir(base_dir)
     k = 0
 
@@ -621,6 +640,7 @@ def batch_source_extraction(base_dir):
             source_extraction(
                 file_name=tif_dir,
                 save_dir=output_folder,
+                params_dict=params_dict,
                 visual_check=True,
                 parallel=True,
                 corr_map=True
@@ -637,13 +657,34 @@ def batch_check_results(base_dir):
         print(f'Finished {sw}')
 
 
+def load_settings(settings_dir):
+    try:
+        with open(settings_dir, 'r') as f:
+            params_dict = yaml.safe_load(f)
+    except FileNotFoundError:
+        print('\n ==== ERROR: COULD NOT FIND SETTINGS FILE ==== \n')
+        return None
+    return params_dict
+
+
 def main():
-    # warnings.filterwarnings("ignore", category=FutureWarning)
-    base_dir = 'D:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection'
-    file_dir = 'D:/WorkingData/Tec_Data/Neuropil_LTe_Ca_imaging/tiff_stacks/unregistered'
-    # Batch Motion Correction
-    batch_motion_correction(file_dir, dual_pass=False)
+
+    base_dir = 'D:/WorkingData/TestData_KL'
+    data_dir = f'{base_dir}/data'
+    tif_dir = f'{base_dir}/org'
+    caiman_settings = f'{base_dir}/caiman_settings.yaml'
+
+    # batch_motion_correction(tif_dir)
+    # exit()
+
+    batch_source_extraction(data_dir, settings_dir=caiman_settings)
     exit()
+
+    base_dir = 'D:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection'
+
+    # Batch Motion Correction
+    file_dir = 'D:/WorkingData/Tec_Data/Neuropil_LTe_Ca_imaging/tiff_stacks/unregistered'
+    # batch_motion_correction(file_dir, dual_pass=False)
 
     # Batch ROI Detection and Source Extraction
     # batch_source_extraction(base_dir)

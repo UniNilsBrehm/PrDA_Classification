@@ -3,6 +3,7 @@ import suite2p
 import numpy as np
 import os
 import time
+import yaml
 import shutil
 import matplotlib.pyplot as plt
 from tifffile import imread
@@ -122,7 +123,7 @@ def suite2p_registering(rec_path, rec_name, non_rigid=0, f_batch_size=300):
     print(f'This took approx. {np.round((t1 - t0) / 60, 2)} min.')
 
 
-def run_suite2p_pipeline(tiff_path, output_folder):
+def run_suite2p_pipeline(tiff_path, output_folder, params_dict=None):
     """
     Parameters explained:
     threshold_scaling: 
@@ -139,56 +140,63 @@ def run_suite2p_pipeline(tiff_path, output_folder):
     # Make sure output dir exists
     os.makedirs(output_folder, exist_ok=True)
     ops = suite2p.default_ops()
-    ops.update({
-        # 'data_path': [os.path.dirname(tiff_path)],  # needed even if unused
-        'data_path': [tiff_path],  # scans for tiffs
-        # 'file_list': [tiff_path],
-        'save_path0': output_folder,
-        'nchannels': 1,  # or 2 if it's dual-channel
-        'functional_chan': 1,  # usually 1 if GCaMP is first channel
-        'nplanes': 1,
-        'look_one_level_down': False,
-        'fs': 1,
-        'tau': 3,
-        'threshold_scaling': 0.9,  #  this controls the threshold at which to detect ROIs (how much the ROIs have to stand out from the noise to be detected).
-        # 'nbinned': 5000,  # maximum number of binned frames to use for ROI detection (default 5000).
-        'batch_size': 500,
-        'allow_overlap': True,
-        'high_pass': 100,  # running mean subtraction across time with window of size ‘high_pass’.
-        'smooth_masks': True,  # whether to smooth masks in final pass of cell detection. This is useful especially if you are in a high noise regime.
-        'do_registration': 0,
-        'denoise': True,
-        'max_iterations': 20,  # how many iterations over which to extract cells
-        'diameter': 3,             # Adjust based on measured soma size
-        'connected': 1,            # Enforce spatial connectivity
-        'max_overlap': 0.6,        # Allow moderate ROI overlap, 1: keep all rois
-        'spatial_scale': 0,        # 0: Let Suite2p determine optimal scale
-        'sparse_mode': False,        # Enable for sparse activity datasets
-        'neuropil_extract': True,  # Whether or not to extract signal from neuropil. If False, Fneu is set to zero.
-        'spatial_hp_cp': 25,
-        'spikedetect': False,  # Whether or not to run spike_deconvolution
-        # 'cellpose_run': True,
-        # 'cellpose': True,  # Enable CellPose-based detection, combine functional and cellpose detection
-
-        # Only use cellpose for roi detection (anatomical_only > 1)
-        'anatomical_only': 0,
-        # 1: Will find masks on max projection image divided by mean image.
-        # 2: Will find masks on mean image
-        # 3: Will find masks on enhanced mean image
-        # 4: Will find masks on maximum projection image
-
-    })
-
-    # Settings for only anatomical cellpose detection
-    if ops['anatomical_only']:
-    # if ops['anatomical_only']:
-        # print('==== USING CELLPOSE ====')
+    if params_dict is None:
         ops.update({
-            'diameter': 4,  # 0: estimate diameter
-            'cellprob_threshold': 0,  # Decrease this threshold if cellpose is not returning as many ROIs as you’d expect.
-            'flow_threshold': 4.0,  # Increase this threshold if cellpose is not returning as many ROIs as you’d expect.
-            'spatial_hp_cp': 200,  # Window for spatial high-pass filtering of image to be used for cellpose.
+            # 'data_path': [os.path.dirname(tiff_path)],  # needed even if unused
+            'data_path': [tiff_path],  # scans for tiffs
+            # 'file_list': [tiff_path],
+            'save_path0': output_folder,
+            'nchannels': 1,  # or 2 if it's dual-channel
+            'functional_chan': 1,  # usually 1 if GCaMP is first channel
+            'nplanes': 1,
+            'look_one_level_down': False,
+            'fs': 3,
+            'tau': 3,
+            'threshold_scaling': 0.9,  #  this controls the threshold at which to detect ROIs (how much the ROIs have to stand out from the noise to be detected).
+            # 'nbinned': 5000,  # maximum number of binned frames to use for ROI detection (default 5000).
+            'batch_size': 500,
+            'allow_overlap': True,
+            'high_pass': 100,  # running mean subtraction across time with window of size ‘high_pass’.
+            'smooth_masks': True,  # whether to smooth masks in final pass of cell detection. This is useful especially if you are in a high noise regime.
+            'do_registration': 0,
+            'denoise': True,
+            'max_iterations': 20,  # how many iterations over which to extract cells
+            'diameter': 20,             # Adjust based on measured soma size
+            'connected': 1,            # Enforce spatial connectivity
+            'max_overlap': 0.6,        # Allow moderate ROI overlap, 1: keep all rois
+            'spatial_scale': 0,        # 0: Let Suite2p determine optimal scale
+            'sparse_mode': True,        # Enable for sparse activity datasets
+            'neuropil_extract': True,  # Whether or not to extract signal from neuropil. If False, Fneu is set to zero.
+            'spatial_hp_cp': 25,
+            'spikedetect': False,  # Whether or not to run spike_deconvolution
+            # 'cellpose_run': True,
+            # 'cellpose': True,  # Enable CellPose-based detection, combine functional and cellpose detection
+
+            # Only use cellpose for roi detection (anatomical_only > 1)
+            'anatomical_only': 2,
+            # 1: Will find masks on max projection image divided by mean image.
+            # 2: Will find masks on mean image
+            # 3: Will find masks on enhanced mean image
+            # 4: Will find masks on maximum projection image
+
         })
+
+        # Settings for only anatomical cellpose detection
+        if ops['anatomical_only']:
+            # if ops['anatomical_only']:
+            # print('==== USING CELLPOSE ====')
+            ops.update({
+                'diameter': 20,  # 0: estimate diameter
+                'cellprob_threshold': 0,
+                # Decrease this threshold if cellpose is not returning as many ROIs as you’d expect.
+                'flow_threshold': 20.0,
+                # Increase this threshold if cellpose is not returning as many ROIs as you’d expect.
+                'spatial_hp_cp': 200,  # Window for spatial high-pass filtering of image to be used for cellpose.
+            })
+    else:
+        params_dict['data_path'] = [tiff_path]
+        params_dict['save_path0'] = output_folder
+        ops.update(params_dict)
 
     print('')
     print("==== Running Suite2p... ====")
@@ -317,32 +325,44 @@ def validate_results(rec_dir):
     check_detection(output_folder=rec_dir, cmap='gray')
 
 
-def batch_suite2p(save_dir):
-    import time
+def batch_suite2p(save_dir, settings_dir=None):
+    # Loading Setting text file
+    if settings_dir is not None:
+        try:
+            with open(settings_dir, 'r') as f:
+                params_dict = yaml.safe_load(f)
+            print(f'\n ==== SETTINGS: {settings_dir} ==== \n')
+        except FileNotFoundError:
+            print('\n ==== ERROR: COULD NOT FIND SETTINGS FILE ==== \n')
+            return
+
     sw_list = os.listdir(save_dir)
     k = 0
     for sw in sw_list:
         t0 = time.perf_counter()
         k += 1
         sw_dir = f'{save_dir}/{sw}'
+        tiff_path = f'{sw_dir}/rec'
         run_suite2p_pipeline(
-            tiff_path=sw_dir,
+            tiff_path=tiff_path,
             output_folder=sw_dir,
+            params_dict=params_dict
         )
 
         validate_results(sw_dir)
         t1 = time.perf_counter()
-        print(f'FINISHED {k}/{len(sw)}, this took {(t1 - t0)/60:.3f} minutes')
+        print(f'FINISHED {k}/{len(sw_list)}, this took {(t1 - t0)/60:.3f} minutes')
         t1 = time.perf_counter()
         print(f'This took: {(t1-t0)/60:.2f} minutes')
-
 
 
 def main():
     # Batch Detection
     # file_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/tiff_recordings/motion_corrected'
-    base_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection'
-    batch_suite2p(base_dir)
+    # base_dir = 'F:/WorkingData/Tec_Data/Neuropil_RTe_Ca_imaging/cell_detection'
+    base_dir = 'D:/WorkingData/TestData_KL/data'
+    suite2p_settings = f'D:/WorkingData/TestData_KL/suite2p_settings.yaml'
+    batch_suite2p(base_dir, settings_dir=suite2p_settings)
 
     # run_suite2p_detection()
     # validate_results(rec_dir='D:/WorkingData/RoiDetection/test/rec')
