@@ -1,59 +1,66 @@
 # Clustering Analysis
-## Packages
-```shell
-numpy
-IPython
-pandas
-matplotlib
-seaborn
-scipy
-sklearn
-joblib
-pickle
-```
 
-This is the order you should use the scripts:
+This repository contains a set of scripts for analyzing Ca²⁺ imaging, ventral root recordings, and stimulus data. Follow the steps below in order:
 
-1. Metadata
-'get_meta_data_from_sweeps.py'
-Collect all metadata information from the Ca Imaging recoding data, ventral root recordings and stimulus log files
-creates: meta_data.csv and sampling_rate.csv
+---
 
-2. Matching Sampling Rates
-'match_sampling_rates.py'
-Match the sampling rates of some recordings to the one of all the other recordings
+### 1. **Metadata Extraction**
+**Script:** `get_meta_data_from_sweeps.py`  
+**Description:** Collects metadata from Ca imaging recordings, ventral root data, and stimulus logs.  
+**Outputs:**  
+- `meta_data.csv`  
+- `sampling_rate.csv`
 
-3. Data Selection
-'select_good_sweeps.py'
-Select good recordings for further analysis and convert it to dF/F
+---
 
-4. Stimulus
-'stimulus_pre_processing.py'
-Prepare stimulus data for further analysis
- 
-5. Ventral Root: Preprocessing
-'ventral_root_pre_processing.py'
-Prepare ventral root recordings (converting Olympus .txt files) for further analysis
+### 2. **Match Sampling Rates**
+**Script:** `match_sampling_rates.py`  
+**Description:** Aligns the sampling rates of various recordings for consistency.
 
-6. Ventral Root: Time Alignment
-'ventral_root_align_recordings_with_ca_imaging.py'
-Time align ventral root recordings with ca imaging data
+---
 
-7. Ventral Root: Event Detection
-'ventral_root_event_detection.py'
-Detect swim bouts in the ventral root traces
+### 3. **Select Good Sweeps**
+**Script:** `select_good_sweeps.py`  
+**Description:** Filters high-quality recordings for further analysis and converts them to ΔF/F.
 
-8. Linear Scoring of Responses to Stimuli and Motor Events
-'linear_scoring_analysis.py'
-Using a linear regression model to score ROI responses.
-Score = R² * slope
+---
 
-Optional:
-- Remove Motor Events from Ca Responses
-  "remove_motor_events_from_ca_responses.py"
+### 4. **Stimulus Preprocessing**
+**Script:** `stimulus_pre_processing.py`  
+**Description:** Processes stimulus data for integration in the analysis pipeline.
 
-   
+---
 
+### 5. **Ventral Root: Preprocessing**
+**Script:** `ventral_root_pre_processing.py`  
+**Description:** Converts Olympus `.txt` files and prepares ventral root recordings.
 
-### ----------
-Nils Brehm - 2024
+---
+
+### 6. **Ventral Root: Time Alignment**
+**Script:** `ventral_root_align_recordings_with_ca_imaging.py`  
+**Description:** Aligns ventral root recordings with Ca imaging data temporally.
+
+---
+
+### 7. **Ventral Root: Event Detection**
+**Script:** `ventral_root_event_detection.py`  
+**Description:** Detects swim bouts and other motor events in ventral root traces.
+
+---
+
+### 8. **Linear Scoring of Responses**
+**Script:** `linear_scoring_analysis.py`  
+**Description:**  
+Applies linear regression to score ROI responses:  
+**Score = R² × slope**
+
+---
+
+### Optional
+- **Remove Motor Events from Ca Responses**  
+  `remove_motor_events_from_ca_responses.py`
+
+---
+
+**Author:** Nils Brehm — 2024
