@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from utils import load_raw_ca_data_only, load_ca_meta_data, load_ca_data_headers_only, simple_interpolation
-from IPython import embed
+from config import Config
 import matplotlib.pyplot as plt
 
 """
@@ -112,7 +112,9 @@ def align_sampling_rates(raw_data_file, meta_data_file):
 
 
 def main():
-    base_dir = 'D:/WorkingData/PrTecDA_Data/PrDA_somas_Ca_imaging'
+    base_dir = Config.BASE_DIR
+    print(f'\n ==== BASE DIR set to: {base_dir} ==== \n')
+    
     raw_data_file = f'{base_dir}/data/raw_data.csv'
     meta_data_file = f'{base_dir}/meta_data/meta_data.csv'
     save_dir = f'{base_dir}/data/ca_data.csv'

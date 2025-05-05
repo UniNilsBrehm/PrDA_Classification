@@ -1,6 +1,8 @@
 import os
+import numpy as np
 import pandas as pd
 from datetime import datetime
+from config import Config
 from utils import validate_directory, load_ca_data_headers_only
 
 """
@@ -78,6 +80,15 @@ def create_meta_data_file(meta_data, meta_data_dir):
 
     # Store meta data as a csv file to disk
     meta_data_file.to_csv(f'{meta_data_dir}/meta_data.csv')
+
+    # Store sampling rate (one for all recordings)
+    fr = meta_data_file['sampling_rate'].unique()
+    if len(fr) > 1:
+        print('\n WARNING: FOUND MORE THAN ONE SAMPLING RATE!')
+    else:
+        fr_df = pd.DataFrame([fr[0], 1/fr[0]]).transpose()
+        fr_df.columns = ['sampling_rate', 'frame_dt']
+        fr_df.to_csv(f'{meta_data_dir}/sampling_rate.csv', index=False)
     # check = pickle_stuff(f'{meta_data_dir}/meta_data.pickle', meta_data_file)
     print(f'++++ STORED META DATA TO HDD ({meta_data_dir}) ++++')
 
@@ -143,7 +154,8 @@ def get_meta_data(recording_time_stamps_dir, ca_data_dir, stimulus_dir, vr_files
 
 
 def main():
-    base_dir = 'D:/WorkingData/PrTecDA_Data/PrDA_somas_Ca_imaging'
+    base_dir = Config.BASE_DIR
+    print(f'\n ==== BASE DIR set to: {base_dir} ==== \n')
     get_meta_data(
         recording_time_stamps_dir=f'{base_dir}/time_stamps',
         ca_data_dir=f'{base_dir}/data/raw_data.csv',

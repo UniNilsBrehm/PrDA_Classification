@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
-from utils import get_rois_per_sweep, broaden_binary_trace, binary_to_gaussian
+from utils import get_rois_per_sweep, broaden_binary_trace, binary_to_gaussian, create_regressors_from_binary, \
+    calcium_impulse_response, filter_low_pass
 from IPython import embed
 
 
@@ -49,11 +50,38 @@ def mask_ca_trace_by_motor_events(ca_trace, binary, ca_sampling_rate, window):
     return masked_trace
 
 
+def subtract_motor_regressors(ca_trace, binary, ca_sampling_rate):
+    suppression_factor = 2
+    _, cirf = calcium_impulse_response(tau_rise=3, tau_decay=6, norm=True, sampling_rate=ca_sampling_rate)
+    reg = create_regressors_from_binary(binary, cirf)
+
+    # Move the reg slightly into the future
+    # Shift left by 2 samples (i.e., events start earlier)
+    shift_amount = 4
+    reg_shifted = np.roll(reg, -shift_amount)
+
+    # Zero out the last `shift_amount` elements (wrapped-around data)
+    reg_shifted[-shift_amount:] = 0
+
+    reg_sup = reg_shifted * suppression_factor + 1
+    de_motored = ca_trace / reg_sup
+    de_motored_fil = filter_low_pass(de_motored, cutoff=0.5, fs=ca_sampling_rate)
+
+    # import matplotlib.pyplot as plt
+    # plt.plot(ca_trace, 'k')
+    # plt.plot(reg_a / np.max(reg_a), 'r')
+    # plt.plot(de_motored, 'g')
+    # plt.plot(de_motored_fil, 'tab:orange')
+    #
+    # plt.show()
+
+    return de_motored_fil
+
+
 def main():
     # Directories
     base_dir = 'D:/WorkingData/PrTecDA_Data/PrDA_somas_Ca_imaging'
     vr_binaries_dir = f'{base_dir}/ventral_root/selected_sweeps_ventral_root_binaries.csv'
-    vr_regressors_dir = f'{base_dir}/ventral_root/selected_sweeps_ventral_root_regressor_traces.csv'
     ca_labels_file = f'{base_dir}/data/df_f_data_labels.csv'
 
     ca_sampling_rate_file = f'{base_dir}/meta_data/sampling_rate.csv'
@@ -68,7 +96,6 @@ def main():
 
     # Detected VR Events for selected data set as a binary trace
     vr_binaries = pd.read_csv(vr_binaries_dir)
-    # vr_regressors = pd.read_csv(vr_regressors_dir)
 
     rois_per_sweep = get_rois_per_sweep(ca_labels)
     results = []
@@ -76,7 +103,9 @@ def main():
         binary = vr_binaries[sw]
         for roi in rois_per_sweep[sw]:
             ca_trace = ca_df_f[str(roi)]
-            mask_trace = mask_ca_trace_by_motor_events(ca_trace, binary, ca_sampling_rate, window=window_sec)
+            # Use the Motor Regressor to remove any motor biased ca activity
+            mask_trace = subtract_motor_regressors(ca_trace, binary, ca_sampling_rate)
+            # mask_trace2 = mask_ca_trace_by_motor_events(ca_trace, binary, ca_sampling_rate, window=window_sec)
             results.append(mask_trace)
     ca_df_f_no_motor = pd.DataFrame(results).T
 

@@ -4,7 +4,7 @@ import os
 class Config:
     # Base directory where all project files are located
     BASE_DIR = os.path.expanduser('D:/WorkingData/PrTecDA_Data/PrDA_somas_Ca_imaging')
-
+    # BASE_DIR = os.path.expanduser('D:/WorkingData/Initial_Data_PrDA_somas')
     # Define specific directories
     stimulus_protocols_dir: str = os.path.join(BASE_DIR, 'protocols')
 

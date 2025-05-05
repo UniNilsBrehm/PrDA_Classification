@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 from IPython import embed
+from config import Config
 from datetime import datetime, timedelta
 
 
@@ -256,7 +257,6 @@ def create_stimulus_protocol(meta_data, sw, sw_dir):
         s_type = s_file_name[3:-4]  # remove sw and .txt
         # Open stimulus file
         s_file = pd.read_csv(f'{sw_dir}/{s_file_name}', sep='\t', header=None)
-
         if s_type == 'flash':
             # bright_flash, dark_flash
             flash, onsets, offsets = process_flash(s_file, sw_rec_onset)
@@ -440,7 +440,7 @@ def create_stimulus_traces(stimulus_protocol, ca_time_axis, ca_sampling_rate, sw
 
 def main():
     # Directories
-    base_dir = 'D:/WorkingData/PrTecDA_Data/PrDA_somas_Ca_imaging'
+    base_dir = Config.BASE_DIR
     stimulus_dir = f'{base_dir}/stimulation'
     meta_data_file = f'{base_dir}/meta_data/meta_data.csv'
     meta_data = load_ca_meta_data(meta_data_file)

@@ -1,9 +1,8 @@
 import pandas as pd
 import numpy as np
 from utils import load_raw_ca_data_only, load_ca_data_headers_only, load_ca_meta_data, delta_f_over_f, \
-    filter_low_pass, filter_high_pass, norm_min_max
-from IPython import embed
-
+    filter_low_pass
+from config import Config
 
 """
 Dopaminergic Pretectum Somata Data 2024/2025  - Visual Stimulation Battery
@@ -53,10 +52,12 @@ def select_sweeps(ca_file, sweeps_file):
 
 
 def main():
-    base_dir = 'D:/WorkingData/PrTecDA_Data/PrDA_somas_Ca_imaging'
+    base_dir = Config.BASE_DIR
+    print(f'\n ==== BASE DIR set to: {base_dir} ==== \n')
+
     ca_file = f'{base_dir}/data/ca_data.csv'
     meta_data_file = f'{base_dir}/meta_data/meta_data.csv'
-    sweeps_file = f'{base_dir}/PrDA_good_sweeps.csv'
+    sweeps_file = f'{base_dir}/PrDA_good_sweeps.csv'  # only the column "sweep_name" is important!
     meta_data = load_ca_meta_data(meta_data_file)
 
     # ++++ DATA SELECTION ++++

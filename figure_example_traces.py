@@ -1,14 +1,12 @@
 import matplotlib.pyplot as plt
 import matplotlib
-from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
-from matplotlib.font_manager import FontProperties
+import matplotlib.patches as patches
 import numpy as np
 import pandas as pd
 from config import Config
 from utils import get_rois_per_sweep, load_hdf5_as_dict, save_dict_as_hdf5
-from plotting_utils import add_scale_bar, draw_sizebar
+from plotting_utils import add_scale_bar
 from utils import calcium_impulse_response, create_regressors_from_binary
-import matplotlib.lines as lines
 from plotting_style import PlotStyle
 from IPython import embed
 
@@ -62,7 +60,7 @@ def select_trace_regions(x, y):
     return selected_regions
 
 
-def plot_example_traces(data, ref_img, rois):
+def plot_example_traces_old(data, ref_img, rois):
     stimulus_trace = data['stimulus_trace']
     stimulus_onsets = data['stimulus_onsets']
     vr_trace_org = data['vr_recording']
@@ -178,11 +176,36 @@ def plot_example_traces(data, ref_img, rois):
     # exit()
 
 
-def plot_example_traces2(data, rois):
+def add_rect(ax, x_pos, y_pos, width, height):
+    # Rectangle parameters: (x, y) is the bottom-left corner
+    rect = patches.Rectangle(
+        (x_pos, y_pos),  # x, y
+        width,  # width
+        height,  # height
+        linewidth=2,
+        edgecolor='gray',
+        facecolor='none',
+        linestyle='-'
+    )
+    # Add rectangle to the plot
+    ax.add_patch(rect)
+
+    ax.text(
+        x_pos + width / 2,
+        y_pos + height / 2,
+        "Highlighted Region",
+        horizontalalignment='center',
+        verticalalignment='center',
+        fontsize=10,
+        color='red'
+    )
+
+
+def plot_example_traces(data, rois):
     style = PlotStyle()
 
     stimulus_trace = data['stimulus_trace']
-    stimulus_onsets = data['stimulus_onsets']
+    # stimulus_onsets = data['stimulus_onsets']
     stimulus_binary = data['stimulus_binary']
     vr_trace = data['vr_recording']
     vr_events = data['vr_events']
@@ -275,20 +298,26 @@ def plot_example_traces2(data, rois):
         #     axs[f'ca_trace_{k}'].axvline(x=onset, color='red', linestyle='-', linewidth=0.2, alpha=0.2)
 
     # SCORING EXAMPLES
-    start = int(150 * ca_fr)
-    end = int(300 * ca_fr)
+    # interval = (150, 300)
+    interval_01 = (190, 220)
+    start = int(interval_01[0] * ca_fr)
+    end = int(interval_01[1] * ca_fr)
     axs_scoring['example_1'].plot(ca_time_axis[start:end], ca_traces[rois[-1]][start:end], **style.lsCaTrace)
     axs_scoring['example_1'].plot(ca_time_axis[start:end]-1, vr_reg[start:end], **style.lsVrReg_spontaneous)
 
-    start = int(480 * ca_fr)
-    end = int(630 * ca_fr)
+    # interval = (480, 630)
+    interval_02 = (490, 520)
+    start = int(interval_02[0] * ca_fr)
+    end = int(interval_02[1] * ca_fr)
     axs_scoring['example_2'].plot(ca_time_axis[start:end], ca_traces[rois[-1]][start:end], **style.lsCaTrace)
     grating_reg = stimulus_regs['grating_0'] + stimulus_regs['grating_180']
     axs_scoring['example_2'].plot(ca_time_axis[start:end], grating_reg[start:end], **style.lsStimulusReg)
     axs_scoring['example_2'].plot(ca_time_axis[start:end]-1, vr_reg[start:end], **style.lsVrReg)
 
-    start = int(660 * ca_fr)
-    end = int(810 * ca_fr)
+    # interval = (660, 810)
+    interval_03 = (690, 720)
+    start = int(interval_03[0] * ca_fr)
+    end = int(interval_03[1] * ca_fr)
     scale_factor = 1
     loom_regs = stimulus_regs['bright_loom'] + stimulus_regs['dark_loom']
     axs_scoring['example_3'].plot(ca_time_axis[start:end], ca_traces[rois[-1]][start:end] * scale_factor, **style.lsCaTrace)
@@ -311,6 +340,12 @@ def plot_example_traces2(data, rois):
     # Y Limit
     axs['ventral_root'].set_ylim(-12, 20)
 
+    # Add Rectangular Areas
+    add_rect(axs['ca_trace_4'], interval_01[0], -0.5, width=interval_01[1]-interval_01[0], height=4)
+    add_rect(axs['ca_trace_4'], interval_02[0], -0.5, width=interval_02[1]-interval_02[0], height=4)
+    add_rect(axs['ca_trace_4'], interval_03[0], -0.5, width=interval_03[1]-interval_03[0], height=4)
+
+
     # Add Scale Bars
     # Time Scale Bar
     add_scale_bar(
@@ -318,7 +353,7 @@ def plot_example_traces2(data, rois):
         linewidth=3, fontsize=10, padding=0.08)
 
     add_scale_bar(
-        axs_scoring['example_1'], size=30, label='30 s', location=(0, 0.1), orientation='horizontal', color='black',
+        axs_scoring['example_1'], size=10, label='10 s', location=(0, 0.1), orientation='horizontal', color='black',
         linewidth=3, fontsize=10, padding=0.04)
 
     # Delta F over F Scale Bar
@@ -339,9 +374,11 @@ def plot_example_traces2(data, rois):
         axs['ventral_root'], size=5, label='5 mV', location=(0.95, 0.7), orientation='vertical', color='black',
         linewidth=3, fontsize=10, padding=0.02)
 
-    plt.savefig('D:/WorkingData/PrTecDA_Data/PrDA_somas_Ca_imaging/figures/example_traces3.pdf', dpi=600)
-    plt.savefig('D:/WorkingData/PrTecDA_Data/PrDA_somas_Ca_imaging/figures/example_traces3.jpg', dpi=600)
+    # plt.show()
+    plt.savefig('D:/WorkingData/PrTecDA_Data/PrDA_somas_Ca_imaging/figures/example_traces.pdf', dpi=600)
+    plt.savefig('D:/WorkingData/PrTecDA_Data/PrDA_somas_Ca_imaging/figures/example_traces.jpg', dpi=600)
     plt.close(fig)
+    print('\n=== STORED FIGURE TO HDD ====\n')
     # plt.show()
     # exit()
 
@@ -414,7 +451,7 @@ def main():
     std_z_stack_ref = plt.imread(f'{base_dir}/figures/data/STD_sw_02.png')
     # plot_example_traces(data, ref_img=std_z_stack_ref, rois=['31', '32', '37', '40', '41', '42'])
     # plot_example_traces(data, ref_img=std_z_stack_ref, rois=['456', '457', '459', '460', '461', '462'])
-    plot_example_traces2(data, rois=['457', '456', '459', '460', '461'])
+    plot_example_traces(data, rois=['457', '456', '459', '460', '461'])
 
 
 if __name__ == '__main__':

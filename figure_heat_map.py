@@ -208,16 +208,16 @@ def main():
     ca_df_f, ca_df_f_no_motor, ca_time_axis, stimulus_trace, stimulus_onsets, vr_events, sw_rois, ca_labels = load_data()
 
     # Plot Heat Map
-    file_name = 'heatmap'
-    plot_heat_map(ca_df_f, ca_time_axis, stimulus_trace, stimulus_onsets, None, sw_rois, ca_labels, file_name)
-
-    file_name = 'heatmap_with_vr_events'
-    plot_heat_map(ca_df_f, ca_time_axis, stimulus_trace, stimulus_onsets, vr_events, sw_rois, ca_labels, file_name)
-
-    file_name = 'heatmap_motor_corrected'
+    # file_name = 'heatmap'
+    # plot_heat_map(ca_df_f, ca_time_axis, stimulus_trace, stimulus_onsets, None, sw_rois, ca_labels, file_name)
+    #
+    # file_name = 'heatmap_with_vr_events'
+    # plot_heat_map(ca_df_f, ca_time_axis, stimulus_trace, stimulus_onsets, vr_events, sw_rois, ca_labels, file_name)
+    #
+    file_name = 'heatmap_motor_corrected_reg'
     plot_heat_map(ca_df_f_no_motor, ca_time_axis, stimulus_trace, stimulus_onsets, None, sw_rois, ca_labels, file_name)
 
-    file_name = 'heatmap_with_vr_events_motor_corrected'
+    file_name = 'heatmap_with_vr_events_motor_corrected_reg'
     plot_heat_map(ca_df_f_no_motor, ca_time_axis, stimulus_trace, stimulus_onsets, vr_events, sw_rois, ca_labels, file_name)
 
     print('=== STORED HEATMAPS TO HDD ====')
